@@ -3,7 +3,7 @@ import torch
 from torch import nn as nn
 from torch.autograd import Variable
 
-from utils.compute_distance_matrix import compute_distance_matrix
+from losses.compute_distance_matrix import compute_distance_matrix
 
 
 class RepulsiveLoss(nn.Module):
