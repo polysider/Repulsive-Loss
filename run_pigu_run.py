@@ -19,7 +19,7 @@ from datasets.load_dataset import load_dataset
 from losses.center_loss import CenterLoss
 from losses.repulsive_loss import RepulsiveLoss
 from models.custom_models import MnistModel, Net
-from testing import test_one_batch, test, test_classwise
+from testing import test_one_batch, test, test_classwise, test_retrieval
 from utils.show_images import plot_data_better, visualize_better, visualize_mnist
 from utils.tsne import pca
 
@@ -29,7 +29,7 @@ from utils.tsne import pca
 
 TORCH_SEED = 1
 NUMPY_SEED = 1
-GPU_ID = 3
+GPU_ID = 2
 
 ########################################################################
 # OPTIONS
@@ -42,8 +42,8 @@ model_save_path = 'checkpoints/saved_torch_model'
 
 train = True
 # fix_conv = True
-show_plots = True
-show_misclassified = True
+show_plots = False
+show_misclassified = False
 log = False
 
 ########################################################################
@@ -54,7 +54,7 @@ dataset_choice = 'MNIST'
 # dataset_choice = 'ONLINE_PRODUCTS'
 # dataset_choice = 'FASHION'
 
-num_epochs = 3
+num_epochs = 1
 batch_size_train = 50
 batch_size_test = 1000
 embedding_dim = 256
@@ -73,7 +73,7 @@ center_loss_lr = 0.5
 ########################################################################
 
 
-def train_epoch(model, trainloader, criterion, optimizer, epoch, num_classes, use_gpu=False):
+def train_epoch(model, trainloader, criterion, optimizer, epoch, num_classes, use_gpu=False, show=False):
 
     running_loss = 0.0
     for i, data in enumerate(trainloader):
@@ -147,11 +147,12 @@ def train_epoch(model, trainloader, criterion, optimizer, epoch, num_classes, us
             # print('Embeddings grad: {}'.format(grads['embeddings']))
             running_loss = 0.0
 
-    if embedding_dim == 2:
-        plot_data_better(embeddings.data.cpu().numpy(), labels.data.cpu().numpy(), centers.data.cpu().numpy(), epoch)
-    else:
-        # do PCA and show
-        visualize_mnist(embeddings, labels, centers, epoch, num_classes)
+    if show:
+        if embedding_dim == 2:
+            plot_data_better(embeddings.data.cpu().numpy(), labels.data.cpu().numpy(), centers.data.cpu().numpy(), epoch)
+        else:
+            # do PCA and show
+            visualize_mnist(embeddings, labels, centers, epoch, num_classes)
 
     return model, centers
 
@@ -168,7 +169,7 @@ def main():
     use_gpu = torch.cuda.is_available()
     if use_gpu:
         # this doesn't work. Setting it in the configuration menu does
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+        # os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
         print("GPU: {}".format(torch.cuda.current_device()))
     # use_gpu = False
 
@@ -235,7 +236,7 @@ def main():
         optimizer = [optimizer_net, optimizer_center]
 
         for epoch in range(num_epochs):  # loop over the dataset multiple times
-            _, centers = train_epoch(net, trainloader, criterion, optimizer, epoch, num_classes, use_gpu)
+            _, centers = train_epoch(net, trainloader, criterion, optimizer, epoch, num_classes, use_gpu, show_plots)
 
         print('Finished Training')
         time_elapsed = time.time() - since
@@ -254,7 +255,7 @@ def main():
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     # Test for one batch:
-    embeddings, labels = test_one_batch(net, testloader, classes, use_gpu, Show=show_misclassified)
+    embeddings_one_batch, labels_one_batch = test_one_batch(net, testloader, classes, use_gpu, Show=show_misclassified)
 
     # Test on the whole dataset:
     accuracy = test(net, testloader, use_gpu)
@@ -262,13 +263,17 @@ def main():
     # Classes that performed well, and the classes that did not:
     test_classwise(net, testloader, classes, use_gpu)
 
+    # Test for retrieval
+    k = 3
+    test_retrieval(net, testloader, k, use_gpu)
+
     ########################################################################
     # Show embeddings
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     # load up data
-    x_data = embeddings.data.cpu().numpy()
-    y_data = labels.cpu().numpy()
+    x_data = embeddings_one_batch.data.cpu().numpy()
+    y_data = labels_one_batch.cpu().numpy()
 
     # convert image data to float64 matrix. float64 is need for bh_sne
     x_data = np.asarray(x_data).astype('float64')
@@ -296,4 +301,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with torch.cuda.device(GPU_ID):
+        main()

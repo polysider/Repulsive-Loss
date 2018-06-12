@@ -1,7 +1,11 @@
 import torch
-from torch.autograd import Variable
 import torchvision
-from utils.show_images import showgrid, imshow, plot_nice_grid
+from torch.autograd import Variable
+import numpy as np
+
+from evaluation.knn import KNearestNeighbor
+from evaluation.evaluation_metrics import recall_at_k
+from utils.show_images import imshow, plot_nice_grid
 
 
 def test_one_batch(model, testloader, classes, use_gpu=False, Show=False):
@@ -21,9 +25,6 @@ def test_one_batch(model, testloader, classes, use_gpu=False, Show=False):
 
         title = ' '.join('%5s' % label for label in lbls_to_show)
         imshow(torchvision.utils.make_grid(imgs_to_show), title)
-
-    misclassified_images = []
-    misclassified_labels = []
 
     if use_gpu:
         outputs, embeddings = model(Variable(images).cuda())
@@ -107,3 +108,44 @@ def test_classwise(model, testloader, classes, use_gpu=False):
                 classes[i], 100 * class_correct[i] / class_total[i]))
         else:
             print('Accuracy of %5s is not defined' % classes[i])
+
+
+def test_retrieval(model, testloader, k=1, use_gpu=False):
+
+    labels_list = []
+    retrieved_labels_list = []
+
+    for images, labels in testloader:
+        if use_gpu:
+            outputs, embeddings = model(Variable(images).cuda())
+            labels = labels.cuda()
+            knn_classifier = KNearestNeighbor()
+            knn_classifier.train(embeddings.cpu().data, labels.cpu())
+            retrieved_labels = knn_classifier.get_nearest_labels(embeddings.cpu().data, k)
+            labels_list.extend(labels.cpu().numpy())
+            retrieved_labels_list.extend(retrieved_labels)
+        else:
+            outputs, embeddings = model(Variable(images))
+            knn_classifier = KNearestNeighbor()
+            knn_classifier.train(embeddings.cpu().data.numpy(), labels.cpu().numpy())
+            retrieved_labels = knn_classifier.get_nearest_labels(embeddings.cpu().data.numpy(), k)
+            labels_list.extend(labels.cpu().numpy())
+            retrieved_labels_list.extend(retrieved_labels)
+
+    labels_list = np.asarray(labels_list)
+    retrieved_labels_list = np.asarray(retrieved_labels_list)
+
+    #print(labels_list)
+    #print(retrieved_labels_list)
+    #print(zip(labels_list, retrieved_labels_list))
+    #print([label in label_pred for label, label_pred in zip(labels_list, retrieved_labels_list)])
+    recall = recall_at_k(labels_list, retrieved_labels_list, k)
+    print("Recall at {} is: {}".format(k, recall))
+
+
+
+
+
+
+
+

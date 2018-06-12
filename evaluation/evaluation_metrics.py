@@ -71,3 +71,12 @@ def getHammingDist(Bquery, Bgallery):
         i += 1
 
     return dhamm
+
+
+def recall_at_k(labels, labels_pred_k, k):
+    """
+    ys : [sz_batch]
+    ys_pred_k : [sz_batch x k]
+    """
+    s = sum([1 for label, label_pred_k in zip(labels, labels_pred_k) if label in label_pred_k[:k]])
+    return s / (1. * len(labels))
