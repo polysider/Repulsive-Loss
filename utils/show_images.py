@@ -163,13 +163,13 @@ def plot_data_better(points, labels, center_points=None, epoch=None, log_dir=Non
     plt.pause(0.001)
 
 
-def visualize_better(features, labels, epoch=None):
+def visualize_better(features, labels, num_classes=10, epoch=None):
     features_x = features[:, 0]
     features_y = features[:, 1]
     # plt.ion()
     plt.figure()
-    plt.scatter(features_x, features_y, c=labels, cmap=plt.cm.get_cmap("jet", 10))
-    plt.colorbar(ticks=range(10))
+    plt.scatter(features_x, features_y, c=labels, cmap=plt.cm.get_cmap("jet", num_classes))
+    plt.colorbar(ticks=range(num_classes))
     plt.clim(-0.5, 9.5)
     plt.show(block=True)
     if epoch is not None:
