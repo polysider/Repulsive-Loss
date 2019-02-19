@@ -42,7 +42,7 @@ model_save_path = 'checkpoints/saved_torch_model'
 
 train = True
 # fix_conv = True
-show_plots = False
+show_plots = True
 show_misclassified = False
 log = False
 
@@ -137,10 +137,14 @@ def train_epoch(model, trainloader, criterion, optimizer, epoch, num_classes, us
         accuracy = float(prediction.eq(labels.data).sum()) / batch_size_train * 100
 
         # print statistics
-        running_loss += loss.data[0]
+        running_loss += loss.item()  # loss.data[0]
         if i % 500 == 0:  # print every 1000 mini-batches
-            print('Epoch: {:<3}\tMinibatch No: {:<5}\tLoss: {:.3f}\tCross entropy: {:.3f}\tCenter Loss: {:.3f}\tRepulsive Loss: {:.3f}\tRunning Loss: {:<4.3f}\tAccuracy: {:.3f}'.
-                  format(epoch, i, loss.data[0], cross_entropy_loss.data[0], center_loss.data[0], repulsive_loss.data[0], running_loss, accuracy))
+            # print('Epoch: {:<3}\tMinibatch No: {:<5}\tLoss: {:.3f}\tCross entropy: {:.3f}\tCenter Loss: {:.3f}\tRepulsive Loss: {:.3f}\tRunning Loss: {:<4.3f}\tAccuracy: {:.3f}'.
+            #       format(epoch, i, loss.data[0], cross_entropy_loss.data[0], center_loss.data[0], repulsive_loss.data[0], running_loss, accuracy))
+            print(
+                'Epoch: {:<3}\tMinibatch No: {:<5}\tLoss: {:.3f}\tCross entropy: {:.3f}\tCenter Loss: {:.3f}\tRepulsive Loss: {:.3f}\tRunning Loss: {:<4.3f}\tAccuracy: {:.3f}'.
+                format(epoch, i, loss.item(), cross_entropy_loss.item(), center_loss.item(), repulsive_loss.item(),
+                       running_loss, accuracy))
             # print('Centers: {}'.format(centers.data.cpu()))
             # print('Centers grad: {}'.format(centers.grad))
             # print('Embeddings grad: {}'.format(embeddings.grad))
@@ -164,13 +168,18 @@ def main():
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     torch.manual_seed(TORCH_SEED)
+    torch.cuda.manual_seed(TORCH_SEED)
     np.random.seed(NUMPY_SEED)
 
     use_gpu = torch.cuda.is_available()
-    if use_gpu:
+
+    device = torch.device("cuda" if use_gpu else "cpu")
+    print('GPU id: {}, name: {}'.format(GPU_ID, torch.cuda.get_device_name(torch.cuda.current_device())))
+
+    # if use_gpu:
         # this doesn't work. Setting it in the configuration menu does
         # os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
-        print("GPU: {}".format(torch.cuda.current_device()))
+        # print("GPU: {}".format(torch.cuda.current_device()))
     # use_gpu = False
 
     # plt.interactive(False) # an attempt to make plt work
@@ -301,5 +310,6 @@ def main():
 
 
 if __name__ == '__main__':
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     with torch.cuda.device(GPU_ID):
         main()

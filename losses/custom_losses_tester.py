@@ -11,7 +11,7 @@ def main():
 
     ct = CenterLoss(10, 2)
     ct = ct.cuda()
-    print list(ct.parameters())
+    print(list(ct.parameters()))
 
     # print ct.centers.grad
 
