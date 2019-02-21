@@ -72,7 +72,7 @@ def test(model, testloader, use_gpu=False):
         total += labels.size(0)
         correct += (predicted == labels).sum()
 
-    accuracy = 100.0 * correct / total
+    accuracy = 100.0 * correct.item() / total
 
     print('Accuracy of the network on the test images: {:.3f}; correct: {} out of {}'.format(
         accuracy, correct, total))

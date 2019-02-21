@@ -7,6 +7,7 @@ mnist
 
 import os
 import time
+import sys
 
 import numpy as np
 import torch
@@ -22,6 +23,8 @@ from models.custom_models import MnistModel, Net
 from testing import test_one_batch, test, test_classwise, test_retrieval
 from utils.show_images import plot_data_better, visualize_better, visualize_mnist
 from utils.tsne import pca
+
+from train import train_epoch
 
 ########################################################################
 # CONSTANTS
@@ -73,99 +76,13 @@ center_loss_lr = 0.5
 ########################################################################
 
 
-def train_epoch(model, trainloader, criterion, optimizer, epoch, num_classes, use_gpu=False, show=False):
-
-    running_loss = 0.0
-    for i, data in enumerate(trainloader):
-        # get the inputs
-        inputs, labels = data
-
-        if use_gpu:
-            inputs = inputs.cuda()
-            labels = labels.cuda()
-
-        # wrap them in Variable
-        inputs, labels = Variable(inputs), Variable(labels)
-
-        # zero the parameter gradients
-        optimizer[0].zero_grad()
-        optimizer[1].zero_grad()
-
-        outputs, embeddings = model(inputs)
-
-        grads = {}
-
-        def save_grad(name):
-            def hook(grad):
-                grads[name] = grad
-
-            return hook
-
-        h = embeddings.register_hook(save_grad('embeddings'))
-
-        # cross_entropy_loss = criterion[0](outputs, labels)
-        cross_entropy_loss = criterion[0](F.log_softmax(outputs), labels)
-
-        center_loss = criterion[1](labels, embeddings)
-
-        # centers = criterion[1].state_dict()['centers']
-        centers = criterion[1].centers
-
-        feat_dim = centers.size()[1]
-
-        repulsive_loss_module = criterion[2]
-        repulsive_loss_module.update_centers(centers)
-        repulsive_loss = repulsive_loss_module(labels, embeddings)
-
-        loss = cross_entropy_loss + center_loss + repulsive_loss
-        # loss = cross_entropy_loss + center_loss
-        # loss = repulsive_loss
-
-        # backward
-        loss.backward()
-
-        # loss = loss + repulsive_loss
-
-        # updates net parameters
-        optimizer[0].step()
-
-        # updates centers
-        optimizer[1].step()
-
-        # second '[1]' output of torch.max() is an argmax, i.e. outputs index location of each maximum value found
-        prediction = outputs.data.max(1)[1]  # first column has actual prob.
-        accuracy = float(prediction.eq(labels.data).sum()) / batch_size_train * 100
-
-        # print statistics
-        running_loss += loss.item()  # loss.data[0]
-        if i % 500 == 0:  # print every 1000 mini-batches
-            # print('Epoch: {:<3}\tMinibatch No: {:<5}\tLoss: {:.3f}\tCross entropy: {:.3f}\tCenter Loss: {:.3f}\tRepulsive Loss: {:.3f}\tRunning Loss: {:<4.3f}\tAccuracy: {:.3f}'.
-            #       format(epoch, i, loss.data[0], cross_entropy_loss.data[0], center_loss.data[0], repulsive_loss.data[0], running_loss, accuracy))
-            print(
-                'Epoch: {:<3}\tMinibatch No: {:<5}\tLoss: {:.3f}\tCross entropy: {:.3f}\tCenter Loss: {:.3f}\tRepulsive Loss: {:.3f}\tRunning Loss: {:<4.3f}\tAccuracy: {:.3f}'.
-                format(epoch, i, loss.item(), cross_entropy_loss.item(), center_loss.item(), repulsive_loss.item(),
-                       running_loss, accuracy))
-            # print('Centers: {}'.format(centers.data.cpu()))
-            # print('Centers grad: {}'.format(centers.grad))
-            # print('Embeddings grad: {}'.format(embeddings.grad))
-            # print('Embeddings grad: {}'.format(grads['embeddings']))
-            running_loss = 0.0
-
-    if show:
-        if embedding_dim == 2:
-            plot_data_better(embeddings.data.cpu().numpy(), labels.data.cpu().numpy(), centers.data.cpu().numpy(), epoch)
-        else:
-            # do PCA and show
-            visualize_mnist(embeddings, labels, centers, epoch, num_classes)
-
-    return model, centers
-
-
 def main():
 
     ########################################################################
     # Set-up
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    print(sys.executable)
 
     torch.manual_seed(TORCH_SEED)
     torch.cuda.manual_seed(TORCH_SEED)
@@ -176,65 +93,35 @@ def main():
     device = torch.device("cuda" if use_gpu else "cpu")
     print('GPU id: {}, name: {}'.format(GPU_ID, torch.cuda.get_device_name(torch.cuda.current_device())))
 
-    # if use_gpu:
-        # this doesn't work. Setting it in the configuration menu does
-        # os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
-        # print("GPU: {}".format(torch.cuda.current_device()))
-    # use_gpu = False
-
-    # plt.interactive(False) # an attempt to make plt work
-
-    ########################################################################
-    # The output of torchvision datasets are PILImage images of range [0, 1].
-    # We transform them to Tensors of normalized range [-1, 1]
-
-    #   transform = transforms.Compose(
-    #       [transforms.Scale((32, 32)),
-    #       transforms.ToTensor(),
-    #       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-    # transform = transforms.ToTensor()
-    #
-    # trainset = datasets.MNIST(MNIST_DIR, train=True, download=True, transform=transform)
-    # trainloader = DataLoader(trainset, batch_size=batch_size, shuffle=False, num_workers=2)
-    #
-    # testset = datasets.MNIST(MNIST_DIR, train=False, transform=transform)
-    # testloader = DataLoader(testset, batch_size=1000)
-
     trainloader, testloader, trainset, testset, num_classes = load_dataset(dataset_choice, batch_size_train, batch_size_test)
 
-    dataloaders = {'train': trainloader, 'val': testloader}
-    dataset = {'train': trainset, 'val': testset}
-
     classes = np.arange(0, 10)
+    # classes = [1,2,3,4,5,6,7,8,9,0]
 
     if train:
 
         since = time.time()
-
         # Define a Convolution Neural Network
         net = MnistModel(embedding_dim)
         if dataset_choice == 'ONLINE_PRODUCTS':
             net = Net(embedding_dim)
 
-        if use_gpu:
-            net = net.cuda()
+        net = net.to(device)
 
         # Define a Loss function and optimizer
-        # criterion = nn.CrossEntropyLoss()
-        # optimizer = optim.Adam(net.parameters(), lr=0.0001)
-
         # cross_entropy = nn.CrossEntropyLoss()
         cross_entropy = nn.NLLLoss()
 
         center_loss_weight = cl_weight
         center_loss_module = CenterLoss(num_classes, embedding_dim, center_loss_weight)
+        center_loss_module = center_loss_module.to(device)
         if use_gpu:
             center_loss_module = center_loss_module.cuda()
 
         repulsive_loss_weight = rl_weight
         repulsive_loss_margin = rl_margin
         repulsive_loss_module = RepulsiveLoss(num_classes, embedding_dim, repulsive_loss_margin, repulsive_loss_weight)
+        repulsive_loss_module = repulsive_loss_module.to(device)
         if use_gpu:
             repulsive_loss_module = repulsive_loss_module.cuda()
 
@@ -245,7 +132,7 @@ def main():
         optimizer = [optimizer_net, optimizer_center]
 
         for epoch in range(num_epochs):  # loop over the dataset multiple times
-            _, centers = train_epoch(net, trainloader, criterion, optimizer, epoch, num_classes, use_gpu, show_plots)
+            _, centers = train_epoch(net, trainloader, criterion, optimizer, epoch, num_classes, batch_size_train, device, use_gpu, show_plots, embedding_dim)
 
         print('Finished Training')
         time_elapsed = time.time() - since
