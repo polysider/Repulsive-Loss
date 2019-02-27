@@ -70,9 +70,9 @@ def test(model, testloader, use_gpu=False):
         _, predicted = torch.max(outputs.data, 1)
         # print(predicted)
         total += labels.size(0)
-        correct += (predicted == labels).sum()
+        correct += (predicted == labels).sum().item()
 
-    accuracy = 100.0 * correct.item() / total
+    accuracy = 100.0 * correct / total
 
     print('Accuracy of the network on the test images: {:.3f}; correct: {} out of {}'.format(
         accuracy, correct, total))
@@ -84,8 +84,8 @@ def test_classwise(model, testloader, classes, use_gpu=False):
     ########################################################################
     # Classes that performed well, and the classes that did not:
 
-    class_correct = list(0. for class_name in classes)
-    class_total = list(0. for class_name in classes)
+    class_correct = list(0 for class_name in classes)
+    class_total = list(0 for class_name in classes)
 
     for data in testloader:
         images, labels = data
@@ -98,16 +98,16 @@ def test_classwise(model, testloader, classes, use_gpu=False):
         _, predicted = torch.max(outputs.data, 1)
         c = (predicted == labels).squeeze()
         for i in range(labels.size(0)):
-            label = labels[i]
-            class_correct[label] += c[i]
+            label = labels[i].item()
+            class_correct[label] += c[i].item()
             class_total[label] += 1
 
     for i in range(classes.__len__()):
         if not class_total[i] == 0:
-            print('Accuracy of %5s : %2d %%' % (
-                classes[i], 100 * class_correct[i] / class_total[i]))
+            class_accuracy = 100.0 * class_correct[i] / class_total[i]
+            print('Accuracy of {:3} : {:.1f}%'.format(classes[i], class_accuracy))
         else:
-            print('Accuracy of %5s is not defined' % classes[i])
+            print('Accuracy of {:3} is not defined'.format(classes[i]))
 
 
 def test_retrieval(model, testloader, k=1, use_gpu=False):
