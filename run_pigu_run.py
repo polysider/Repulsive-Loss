@@ -89,6 +89,7 @@ def main():
     np.random.seed(NUMPY_SEED)
 
     use_gpu = torch.cuda.is_available()
+    # use_gpu = False
 
     device = torch.device("cuda" if use_gpu else "cpu")
     print('GPU id: {}, name: {}'.format(GPU_ID, torch.cuda.get_device_name(torch.cuda.current_device())))
@@ -154,14 +155,14 @@ def main():
     embeddings_one_batch, labels_one_batch = test_one_batch(net, testloader, classes, use_gpu, Show=show_misclassified)
 
     # Test on the whole dataset:
-    accuracy = test(net, testloader, use_gpu)
+    accuracy = test(net, testloader, device, use_gpu)
 
     # Classes that performed well, and the classes that did not:
-    test_classwise(net, testloader, classes, use_gpu)
+    test_classwise(net, testloader, classes, device, use_gpu)
 
     # Test for retrieval
     k = 3
-    test_retrieval(net, testloader, k, use_gpu)
+    test_retrieval(net, testloader, device, k, use_gpu)
 
     ########################################################################
     # Show embeddings

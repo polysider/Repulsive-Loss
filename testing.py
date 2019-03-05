@@ -56,47 +56,43 @@ def test_one_batch(model, testloader, classes, use_gpu=False, Show=False):
     return embeddings, labels
 
 
-def test(model, testloader, use_gpu=False):
+def test(model, testloader, device, use_gpu=False):
+
     correct = 0
     total = 0
-    for data in testloader:
-        images, labels = data
-        if use_gpu:
-            outputs, _ = model(Variable(images).cuda())
-            labels = labels.cuda()
-        else:
-            outputs, _ = model(Variable(images))
+
+    for (inputs, labels) in testloader:
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        outputs, _ = model(inputs)
 
         _, predicted = torch.max(outputs.data, 1)
-        # print(predicted)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 
     accuracy = 100.0 * correct / total
 
-    print('Accuracy of the network on the test images: {:.3f}; correct: {} out of {}'.format(
+    print('Accuracy of the network on the test images: {:.3f}%; correct: {} out of {}'.format(
         accuracy, correct, total))
 
     return accuracy
 
 
-def test_classwise(model, testloader, classes, use_gpu=False):
-    ########################################################################
+def test_classwise(model, testloader, classes, device, use_gpu=False):
+    ##################################################################
     # Classes that performed well, and the classes that did not:
 
     class_correct = list(0 for class_name in classes)
     class_total = list(0 for class_name in classes)
 
-    for data in testloader:
-        images, labels = data
-        if use_gpu:
-            outputs, _ = model(Variable(images).cuda())
-            labels = labels.cuda()
-        else:
-            outputs, _ = model(Variable(images))
+    for (inputs, labels) in testloader:
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        outputs, _ = model(inputs)
 
         _, predicted = torch.max(outputs.data, 1)
         c = (predicted == labels).squeeze()
+
         for i in range(labels.size(0)):
             label = labels[i].item()
             class_correct[label] += c[i].item()
@@ -110,27 +106,22 @@ def test_classwise(model, testloader, classes, use_gpu=False):
             print('Accuracy of {:3} is not defined'.format(classes[i]))
 
 
-def test_retrieval(model, testloader, k=1, use_gpu=False):
+def test_retrieval(model, testloader, device, k=1, use_gpu=False):
 
     labels_list = []
     retrieved_labels_list = []
 
-    for images, labels in testloader:
-        if use_gpu:
-            outputs, embeddings = model(Variable(images).cuda())
-            labels = labels.cuda()
-            knn_classifier = KNearestNeighbor()
-            knn_classifier.train(embeddings.cpu().data, labels.cpu())
-            retrieved_labels = knn_classifier.get_nearest_labels(embeddings.cpu().data, k)
-            labels_list.extend(labels.cpu().numpy())
-            retrieved_labels_list.extend(retrieved_labels)
-        else:
-            outputs, embeddings = model(Variable(images))
-            knn_classifier = KNearestNeighbor()
-            knn_classifier.train(embeddings.cpu().data.numpy(), labels.cpu().numpy())
-            retrieved_labels = knn_classifier.get_nearest_labels(embeddings.cpu().data.numpy(), k)
-            labels_list.extend(labels.cpu().numpy())
-            retrieved_labels_list.extend(retrieved_labels)
+    for inputs, labels in testloader:
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        outputs, embeddings = model(inputs)
+
+        knn_classifier = KNearestNeighbor()
+        knn_classifier.train(embeddings.cpu().data, labels.cpu())
+        retrieved_labels = knn_classifier.get_nearest_labels(embeddings.cpu().data, k)
+
+        labels_list.extend(labels.cpu().numpy())
+        retrieved_labels_list.extend(retrieved_labels)
 
     labels_list = np.asarray(labels_list)
     retrieved_labels_list = np.asarray(retrieved_labels_list)
